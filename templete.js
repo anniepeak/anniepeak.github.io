@@ -93,32 +93,64 @@ iris.then(function(data) {
 
 iris.then(function(data) {
     // Convert string values to numbers
-    
+    data.forEach(function(d) {
+        d.PetalLength = +d.PetalLength;
+    });
 
     // Define the dimensions and margins for the SVG
-    
+    const marginBoxplot = {top: 50, right: 50, bottom: 50, left: 50};
+    const widthBoxplot = 500 - marginBoxplot.left - marginBoxplot.right;
+    const heightBoxplot = 400 - marginBoxplot.top - marginBoxplot.bottom;
+
 
     // Create the SVG container
-    
+    const svgBoxplot = d3.select("body").append("svg")
+        .attr("width", widthBoxplot + marginBoxplot.left + marginBoxplot.right)
+        .attr("height", heightBoxplot + marginBoxplot.top + marginBoxplot.bottom)
+        .append("g")
+        .attr("transform", "translate(" + marginBoxplot.left + "," + marginBoxplot.top + ")");
 
-    // Set up scales for x and y axes
-    
+    // Set up x and y scales for boxplot
+    const xScaleBoxplot = d3.scaleBand()
+        .domain(["setosa", "versicolor", "virginica"])
+        .range([0, widthBoxplot])
+        .padding(0.2);
+    const yScaleBoxplot = d3.scaleLinear()
+        .domain([d3.min(data, d => d.PetalLength) - 0.5, d3.max(data, d => d.PetalLength) + 0.5])
+        .range([heightBoxplot, 0]);
+
 
     // Add scales     
-    
+    svgBoxplot.append("g")
+        .attr("transform", "translate(0," + heightBoxplot + ")")
+        .call(d3.axisBottom(xScaleBoxplot));
 
     // Add x-axis label
-    
+    svgBoxplot.append("text")
+        .attr("x", widthBoxplot / 2)
+        .attr("y", heightBoxplot + marginBoxplot.bottom - 10)
+        .attr("text-anchor", "middle")
+        .text("Species");
 
-    // Add y-axis label
-    
+    svgBoxplot.append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("x", -heightBoxplot / 2)
+        .attr("y", -marginBoxplot.left + 10)
+        .attr("text-anchor", "middle")
+        .text("Petal Length")
+
 
     const rollupFunction = function(groupData) {
         const values = groupData.map(d => d.PetalLength).sort(d3.ascending);
         const q1 = d3.quantile(values, 0.25);
-        return { q1};
+        const median = d3.quantile(values, 0.5);
+        const q3 = d3.quantile(values, 0.75);
+        const IQR = q3 - q1; // Interquartile range
+        const lowerBound = q1 - 1.5 * IQR;
+        const upperBound = q3 + 1.5 * IQR;
+        return { q1, median, q3, lowerBound, upperBound };
     };
-
+    
     const quartilesBySpecies = d3.rollup(data, rollupFunction, d => d.Species);
 
     quartilesBySpecies.forEach((quartiles, Species) => {
@@ -126,11 +158,29 @@ iris.then(function(data) {
         const boxWidth = xScale.bandwidth();
 
         // Draw vertical lines
+        svgBoxplot.append("line")
+            .attr("x1", x + boxWidth / 2)
+            .attr("x2", x + boxWidth / 2)
+            .attr("y1", yScaleBoxplot(quartiles.lowerBound))
+            .attr("y2", yScaleBoxplot(quartiles.upperBound))
+            .attr("stroke", "black");
         
         // Draw box
+        svgBoxplot.append("rect")
+            .attr("x", x)
+            .attr("y", yScaleBoxplot(quartiles.q3))
+            .attr("width", boxWidth)
+            .attr("height", yScaleBoxplot(quartiles.q1) - yScaleBoxplot(quartiles.q3))
+            .attr("fill", "lightblue")
+            .attr("stroke", "black");
         
         // Draw median line
-        
+         svgBoxplot.append("line")
+            .attr("x1", x)
+            .attr("x2", x + boxWidth)
+            .attr("y1", yScaleBoxplot(quartiles.median))
+            .attr("y2", yScaleBoxplot(quartiles.median))
+            .attr("stroke", "black");
         
     });
 });
